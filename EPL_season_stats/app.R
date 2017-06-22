@@ -35,7 +35,7 @@ ui <- fluidPage(
       helpText("Data from ",
                a("engsoccerdata", href = "https://github.com/jalapic/engsoccerdata", target="_blank"),
                "package | ",
-               a("Source code", href = "https://github.com/JoGall/shiny-apps", target="_blank"))
+               a("Source code", href = "https://github.com/JoGall/shiny-apps/blob/master/EPL_season_stats/app.R", target="_blank"))
     ),
     # create ggplot
     mainPanel(

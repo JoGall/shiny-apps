@@ -11,7 +11,7 @@ dat <- england %>%
   dplyr::group_by(Season) %>%
   do(maketable_all(.)) %>%
   mutate(Pos = as.numeric(Pos)) %>%
-  select(Season, team, gf, ga, gd, Pts, Pos)
+  select(Season, team, gf, ga, gd, Pts, Pos, GP)
 
 #define ui with Bootstrap layout
 ui <- fluidPage(
@@ -22,15 +22,16 @@ ui <- fluidPage(
     #define sidebar with one input
     sidebarPanel(
       selectInput("ycol", "Choose a statistic:", 
-                  choices = c("Goals scored" = "gf",
+                  choices = c("Points" = "Pts",
+                              "Goals scored" = "gf",
                               "Goals conceded" = "ga",
                               "Goal difference" = "gd",
-                              "Points" = "Pts",
                               "League position" = "Pos")),
       sliderInput("seasons", "Choose season range:",
                   min = 1992, max = 2016, value = c(1992, 2016), sep = ""),
       uiOutput('team_choices'),
       uiOutput('draw_mean'),
+      uiOutput('per_game'),
       hr(),
       helpText("Data from ",
                a("engsoccerdata", href = "https://github.com/jalapic/engsoccerdata", target="_blank"),
@@ -56,14 +57,24 @@ server <- function(input,output){
   
   #determine whether to show checkbox for league averages (not applicable to 'Pos' variable)
   output$draw_mean = renderUI({
-    if(input$ycol != "Pos") {
+    if(!input$ycol %in% c("Pos", "gd")) {
       checkboxInput("mean_line", "Show league average?", FALSE)
+    }
+  })
+  
+  output$per_game = renderUI({
+    if(!input$ycol %in% c("Pos", "gd")) {
+      radioButtons("per_game", "Values as:",
+                   c("raw" = "raw",
+                     "per game" = "rel"),
+                   inline = TRUE)
     }
   })
   
   #apply filters
   mainData <- reactive({
     a <- subset(dat, Season >= input$seasons[1] & Season <= input$seasons[2])
+    if(input$per_game == "rel") a <- mutate(a, gf = gf / GP, ga = ga / GP, Pts = Pts / GP)
     return(a)
   })
   
@@ -88,23 +99,25 @@ server <- function(input,output){
                             ifelse(input$ycol == "gd", "Goal difference",
                                    ifelse(input$ycol == "Pts", "Total points", "League position"))))
     
-    if(input$ycol == "gf") ylimits <- c(15, 110)
-    if(input$ycol == "ga") ylimits <- c(10, 75)
-    if(input$ycol == "gd") ylimits <- c(-75, 75)
-    if(input$ycol == "Pts") ylimits <- c(10, 100)
+    if(input$per_game == "rel") {
+      if(input$ycol == "gf") ylimits <- c(0.4, 2.9)
+      if(input$ycol == "ga") ylimits <- c(0.3, 2.5)
+      if(input$ycol == "Pts") ylimits <- c(0.2, 2.75)
+    } else {
+      if(input$ycol == "gf") ylimits <- c(15, 110)
+      if(input$ycol == "ga") ylimits <- c(10, 105)
+      if(input$ycol == "gd") ylimits <- c(-75, 75)
+      if(input$ycol == "Pts") ylimits <- c(10, 100)
+    }
     
     #plot Pos variable
     if(input$ycol == "Pos") {
       ggplot(dd, aes(x = Season, y = Pos)) + 
         geom_point(alpha=0) +
-        geom_line(data = subsetData(), aes(group = grp), col="red", lwd=1.5) +
         geom_point(data = subsetData(), aes(group = grp), col="red", size = 3) +
-        scale_y_reverse(lim = c(22,1), 
-                        breaks = c(1, 4, 6, 8, 10, 12, 14, 17, 20, 22)) +
-        scale_x_continuous(breaks = unique(dd$Season),
-                           labels = paste0(unique(dd$Season),
-                                           "-",
-                                           substr(unique(dd$Season)+1, 3, 4))) +
+        {if(nrow(subsetData()) > 1) geom_line(data = subsetData(), aes(group = grp), col="red", lwd=1.5) } +
+        {if(input$seasons[1] < 1995) scale_y_reverse(lim = c(22,1), breaks = c(1, 4, 6, 8, 10, 12, 14, 17, 20, 22)) else scale_y_reverse(lim = c(20,1), breaks = c(1, 4, 6, 8, 10, 12, 14, 17, 20))} +
+        scale_x_continuous(breaks = unique(dd$Season), labels = paste0(unique(dd$Season), "-", substr(unique(dd$Season)+1, 3, 4))) +
         ylab(ylabel) +
         xlab("") +
         ggtitle(input$team) +
@@ -123,13 +136,10 @@ server <- function(input,output){
         geom_point(size = 1.5, alpha = 0.5) +
         {if(input$mean_line) stat_summary(fun.y=mean, geom="line", lwd = 1.5, alpha = 0.5)} +
         geom_point(data = subsetData(), aes(x = Season, y = subsetData()[,input$ycol], group = grp), col="red", size = 3) +
-        geom_line(data = subsetData(), aes(x = Season, y = subsetData()[,input$ycol], group = grp), col="red", lwd=1.5) +
+        {if(nrow(subsetData()) > 1) geom_line(data = subsetData(), aes(x = Season, y = subsetData()[,input$ycol], group = grp), col="red", lwd=1.5) } +
         scale_y_continuous(lim = ylimits) +
-        scale_x_continuous(breaks = unique(dd$Season),
-                           labels = paste0(unique(dd$Season),
-                                           "-",
-                                           substr(unique(dd$Season)+1, 3, 4))) +
-                                           {if(input$mean_line) stat_summary(fun.y=mean, geom="line", lwd = 1.5, alpha = 0.5)} +
+        scale_x_continuous(breaks = unique(dd$Season), labels = paste0(unique(dd$Season), "-", substr(unique(dd$Season)+1, 3, 4))) +
+        {if(input$mean_line) stat_summary(fun.y=mean, geom="line", lwd = 1.5, alpha = 0.5)} +
         ylab(ylabel) +
         xlab("") +
         ggtitle(input$team) +

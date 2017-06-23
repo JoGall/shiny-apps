@@ -1,4 +1,5 @@
 library(shiny)
+library(shiny)
 library(ggplot2)
 library(dplyr)
 library(engsoccerdata)
@@ -13,55 +14,36 @@ dat <- england %>%
   mutate(Pos = as.numeric(Pos)) %>%
   select(Season, team, gf, ga, gd, Pts, Pos, GP)
 
-#define ui with Bootstrap layout
-ui <- fluidPage(
-  #title
-  titlePanel("Season statistics in the PL era"),
-  #generate row with a sidebar
-  sidebarLayout(      
-    #define sidebar with one input
-    sidebarPanel(
-      selectInput("ycol", "Choose a statistic:", 
-                  choices = c("Points" = "Pts",
-                              "Goals scored" = "gf",
-                              "Goals conceded" = "ga",
-                              "Goal difference" = "gd",
-                              "League position" = "Pos")),
-      sliderInput("seasons", "Choose season range:",
-                  min = 1992, max = 2016, value = c(1992, 2016), sep = ""),
-      uiOutput('team_choices'),
-      uiOutput('draw_mean'),
-      uiOutput('per_game'),
-      hr(),
-      helpText("Data from ",
-               a("engsoccerdata", href = "https://github.com/jalapic/engsoccerdata", target="_blank"),
-               "package | ",
-               a("Source code", href = "https://github.com/JoGall/shiny-apps/blob/master/EPL_season_stats/app.R", target="_blank"))
-    ),
-    # create ggplot
-    mainPanel(
-      plotOutput("plot")
-    )
-  )
-)
-
-#define server
-server <- function(input,output){
+shinyServer(function(input,output, session) {
   
-  #generate team choices depending on season range 
-  output$team_choices = renderUI({
-    tmp <- subset(dat, Season >= input$seasons[1] & Season <= input$seasons[2])
-    selectInput("team", "Choose a team:", 
-                choices = sort(unique(tmp$team)))
+  output$team <- renderUI({
+    selectInput("teams", "Select team:", choices = sort(unique(dat$team[dat$Season %in% seq(input$seasons[1], input$seasons[2])]))
+                             
+  observeEvent({
+    input$team
+    input$seasons
+    }, {
+      
+      # generate team choices depending on season range
+      output$team <- renderUI({
+        # if previous team choice not in new data, default to first team alphabetically
+        prevSel <- if(!input$team %in% sort(unique(dat$team[dat$Season %in% seq(input$seasons[1], input$seasons[2])]))) sort(unique(dat$team[dat$Season %in% seq(input$seasons[1], input$seasons[2])]))[1]
+        
+        # Create the drop-down menu for the city selection
+        selectInput("teams", "Select team:", 
+                    choices = sort(unique(dat$team[dat$Season %in% seq(input$seasons[1], input$seasons[2])])),
+                    selection = prevSel)
+      })
   })
   
-  #determine whether to show checkbox for league averages (not applicable to 'Pos' variable)
+  # show checkbox to draw league averages?
   output$draw_mean = renderUI({
     if(!input$ycol %in% c("Pos", "gd")) {
       checkboxInput("mean_line", "Show league average?", FALSE)
     }
   })
   
+  # show radio buttons to switch between raw / per game values?
   output$per_game = renderUI({
     if(!input$ycol %in% c("Pos", "gd")) {
       radioButtons("per_game", "Values as:",
@@ -71,17 +53,27 @@ server <- function(input,output){
     }
   })
   
-  #apply filters
+  # filter main data
   mainData <- reactive({
+    if(is.null(input$seasons) | is.null(input$per_game)) {
+      return(NULL)
+    }
+    
     a <- subset(dat, Season >= input$seasons[1] & Season <= input$seasons[2])
+    #transform absolute values to relative (per game)
     if(input$per_game == "rel") a <- mutate(a, gf = gf / GP, ga = ga / GP, Pts = Pts / GP)
     return(a)
   })
   
+  # filter team subset of data
   subsetData <- reactive({
+    if(is.null(input$team) | is.null(mainData())) {
+      return(NULL)
+    }
+    
     dd <- mainData()
     ss <- subset(dd, team == input$team)
-    #add group variable so geom_line skips missing seasons
+    # add group variable so geom_line skips missing seasons
     idx <- c(1, diff(ss$Season))
     i2 <- c(1, which(idx != 1), nrow(ss)+1)
     ss$grp <- rep(1:length(diff(i2)), diff(i2))
@@ -91,14 +83,19 @@ server <- function(input,output){
   #render plot
   output$plot <- renderPlot({
     
+    if (is.null(mainData()) | is.null(subsetData())) {
+      return(NULL)
+    }
+    
     dd <- mainData()
     
-    #initialise plot parameters
+    # plot parameters: y axis label
     ylabel <- ifelse(input$ycol == "gf", "Goals scored",
                      ifelse(input$ycol == "ga", "Goals conceded",
                             ifelse(input$ycol == "gd", "Goal difference",
                                    ifelse(input$ycol == "Pts", "Total points", "League position"))))
     
+    # plot parameters: y axis limits
     if(input$per_game == "rel") {
       if(input$ycol == "gf") ylimits <- c(0.4, 2.9)
       if(input$ycol == "ga") ylimits <- c(0.3, 2.5)
@@ -110,7 +107,7 @@ server <- function(input,output){
       if(input$ycol == "Pts") ylimits <- c(10, 100)
     }
     
-    #plot Pos variable
+    # plot Pos variable
     if(input$ycol == "Pos") {
       ggplot(dd, aes(x = Season, y = Pos)) + 
         geom_point(alpha=0) +
@@ -130,8 +127,7 @@ server <- function(input,output){
               axis.line.y = element_line(color="black"))
       
     } else {
-      
-      #plot other continuous variables
+      # plot other continuous variables
       ggplot(dd, aes(x = Season, y = dd[,input$ycol])) +
         geom_point(size = 1.5, alpha = 0.5) +
         {if(input$mean_line) stat_summary(fun.y=mean, geom="line", lwd = 1.5, alpha = 0.5)} +
@@ -149,10 +145,8 @@ server <- function(input,output){
               panel.grid.minor.x = element_blank(),
               panel.border= element_blank(),
               axis.line.x = element_line(color="black"),
-              axis.line.y = element_line(color="black"))
+              axis.line.y = element_line(color="black")
+              )
     }
   })
-}
-
-#run
-shinyApp(ui, server)
+})

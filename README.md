@@ -17,6 +17,6 @@ Each subfolder contains the `server.r` and `ui.r` files used for that shiny app.
 
 ###### Contact
 
-* **website / blog:** jogall.github.io 
+* **website / blog:** [jogall.github.io](https://jogall.github.io/)
 * **email:**  joedgallagher [at] gmail [dot] com
 * **twitter:**  @joedgallagher

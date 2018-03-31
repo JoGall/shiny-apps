@@ -1,0 +1,12 @@
+name: kanyAI
+title: kanyAI
+username:
+account: jogall
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 311173
+bundleId: 1295683
+url: https://jogall.shinyapps.io/kanyai/
+when: 1522460852.21137
+asMultiple: FALSE
+asStatic: FALSE

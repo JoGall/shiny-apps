@@ -29,11 +29,21 @@ ui <- fluidPage(
               textInput("seed",
                         "Sentence seed (optional)",
                         placeholder = "Uhh yeah baby girl"),
-              actionButton("generate", "Generate Text")
+              actionButton("generate", "Generate Text"),
+              hr(),
+              helpText("By ",
+                       a("Joe Gallagher", href = "https://jogall.github.io/", target="_blank"),
+                       "| Code ",
+                       a("here.", href = "https://github.com/JoGall/shiny-apps/tree/master/kanyAI", target="_blank"))
             ),
             mainPanel(
-              verbatimTextOutput("next_text")
-              
+              htmlOutput("text1"),
+              tags$head(tags$style('#text1{font-family: "Roboto", "Palatino";
+                                 font-size: 1.2em;
+                                 font-style: italic;
+                                 }'
+                )
+              )
             )
     )
   )
@@ -51,7 +61,7 @@ server <- function(input, output) {
       }
       progress$set(value = value, detail = detail)
     }
-    output$next_text <- renderText({
+    output$text1 <- renderText({
       progress <- shiny::Progress$new()
       progress$set(message = "kanyAI is thinking...", value = .5)
       # Close the progress when this reactive exits (even if there's an error)

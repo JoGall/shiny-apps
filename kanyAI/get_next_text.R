@@ -42,5 +42,8 @@ get_next_text <- function( input_text, output_chars, diversity = 1){
   # prefix sentence seed if given
   generated <- paste0(input_text, generated)
   
+  # replace carriage returns for HTML formatting
+  generated <- str_replace_all(generated, "[\r\n]" , "</br>")
+  
   generated
 }
